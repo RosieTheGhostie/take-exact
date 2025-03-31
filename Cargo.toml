@@ -1,0 +1,10 @@
+[package]
+name = "take-exact"
+description = "Easily destructure an iterator as if it were an array."
+authors = ["RosieTheGhostie"]
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["lib"]
+path = "src/lib.rs"
