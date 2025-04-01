@@ -99,7 +99,45 @@ pub trait TakeExact<E>: Iterator + Sized {
     }
 }
 
-impl<T: Iterator + Sized, E> TakeExact<E> for T {}
+pub trait TakeAtLeast<E>: Iterator {
+    fn take_at_least_else<const N: usize>(
+        &mut self,
+        if_too_few: impl FnOnce() -> E,
+    ) -> Result<[Self::Item; N], E> {
+        let mut taken: [MaybeUninit<Self::Item>; N] = [const { MaybeUninit::uninit() }; N];
+        for i in 0..N {
+            if let Some(x) = self.next() {
+                unsafe { taken.get_unchecked_mut(i) }.write(x);
+            } else {
+                for element in &mut taken[..i] {
+                    unsafe { element.assume_init_drop() };
+                }
+                return Err(if_too_few());
+            }
+        }
+        Ok(unsafe { transmute_copy::<_, [Self::Item; N]>(&taken) })
+    }
+
+    fn take_at_least<const N: usize>(&mut self, too_few: E) -> Result<[Self::Item; N], E> {
+        self.take_at_least_else(|| too_few)
+    }
+}
+
+impl<T: Iterator, E> TakeAtLeast<E> for T {}
+impl<T: Sized + TakeAtLeast<E>, E> TakeExact<E> for T {
+    fn take_exact_else<const N: usize>(
+        mut self,
+        if_too_few: impl FnOnce() -> E,
+        if_too_many: impl FnOnce() -> E,
+    ) -> Result<[Self::Item; N], E> {
+        let taken = self.take_at_least_else(if_too_few)?;
+        if self.next().is_none() {
+            Ok(taken)
+        } else {
+            Err(if_too_many())
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
